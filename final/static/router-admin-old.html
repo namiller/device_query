@@ -1,0 +1,41 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="shared/bootstrap.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="shared/easy-autocomplete.css">
+        <script src="shared/jquery.min.js"></script>
+        <script src="shared/bootstrap.min.js"></script>
+        <script src="shared/jquery.easy-autocomplete.min.js"></script>
+        <script>
+            add = {'op': 'add', 'properties':{'name': 'my_router', 'price': 4.1}};
+            update = {'op': 'update', 'property':'name', 'id': 1, 'new': 'orange'};
+            del = {'op': 'delete', 'id': 2};
+            bad = {'op': 'nope', 'id': 1};
+            mal = {'op': 'update', 'property':'derp', 'id': 1, 'new': 'orange'};
+            send_post = function(obj) {
+                $.post("/api/router", obj, function(data) {
+                    console.log(data);
+                });
+            };
+            query = {'fields': ['name', 'price'], 'matches':{}, 'ranges': {}, 'searches': [{'string': 'router', 'field' : 'name', 'start':false}]};
+            send_get = function(obj) {
+                $.get("/api/router/query", obj, function(data) {
+                    console.log(data);
+                });
+            };
+            users = ['nolan', 'bob', 'john', 'jim', 'baktha'];
+        </script>
+    </head>
+    <body>
+        This is the router admin.
+        <div>
+            <form>
+                <input id="username" type="text"></input>
+                <input type="submit"></input>
+            </form>
+        </div>
+        <script>
+            $("#username").easyAutocomplete({data: users});
+        </script>
+    </body>
+</html>

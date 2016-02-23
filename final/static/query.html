@@ -1,0 +1,810 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="shared/bootstrap.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="shared/easy-autocomplete.css">
+        <link rel="stylesheet" href="shared/bootstrap-multiselect.css">
+        <link rel="stylesheet" href="shared/bootstrap-slider.min.css">
+        <script src="shared/jquery.min.js"></script>
+        <script src="shared/bootstrap.min.js"></script>
+        <script src="shared/bootstrap-slider.min.js"></script>
+        <script src="shared/bootstrap-multiselect.min.js"></script>
+        <script src="shared/jquery.easy-autocomplete.min.js"></script>
+        <script src="shared/list.min.js"></script>
+        <script src="api.js"></script>
+        <script>
+            var resultList;
+            var selectionList;
+            var transaction_id;
+            var selections = [];
+            var refresh_queue;
+            var last_query;
+            var result_fields = ['router_id', 'name', 'vendor', 'sku'];
+            var device_display_id = -1;
+            add = {'op': 'add', 'properties':{'name': 'my_router', 'price': 4.1}};
+            update = {'op': 'update', 'property':'name', 'id': 1, 'new': 'orange'};
+            send_post = function(obj) {
+                $.post("/api/router", obj, function(data) {
+                    console.log(data);
+                });
+            };
+            query = {'fields': ['name', 'price'], 'matches':{}, 'ranges': {}, 'searches': [{'string': 'router', 'field' : 'name', 'start':false}]};
+            send_get = function(obj) {
+                $.get("/api/router/query", obj, function(data) {
+                    console.log(data);
+                });
+            };
+
+            //TODO: add ability to adjust ranges based on filters
+            users = [];
+            function update_users() {
+                $.get("/api/user/query", {'fields': ['name']}, function(data) {
+                    console.log(data);
+                    users = [];
+                    for (ind in data) {
+                        users.push(data[ind].name);
+                    }
+                    $("#username").easyAutocomplete({data: users});
+                });
+            }
+            
+            function load_filters() {
+                var fix_order = function(order) {
+                    var sentinal = $('#filters').children().last()
+                    for (tag in order) {
+                        var filt = $('#filter_' + order[tag].key);
+                        filt.insertBefore(sentinal);
+                    }
+                };
+                $.get("/api/router", null, function(data) {
+                    console.log(data);
+                    var sorted = [];
+                    for (var col in data) {
+                        sorted[data[col].index] = {'key': col, 'value': data[col]};
+                    }
+                    for (var col in sorted) {
+                        // Don't show the filters for columns that are unique to each router
+                        if (sorted[col].key == 'router_id' || sorted[col].key == 'name') {
+                            continue;
+                        }
+                        console.log(sorted[col].key);
+                        switch(sql_type(sorted[col].value.type)) {
+                            case 0:
+                                create_num_filter(sorted[col].key, sorted[col].value, true);
+                                break;
+                            case 1:
+                                create_num_filter(sorted[col].key, sorted[col].value, false);
+                                break;
+                            case 3:
+                                create_bool_filter(sorted[col].key);
+                                break;
+                            case 4:
+                                create_text_filter(sorted[col].key, fix_order.bind(this, sorted)); // does async data pull so need to fix after.
+                                break;
+                        }
+                    }
+                    fix_order();
+                });
+            }
+            
+            function create_num_filter(column, properties, integer) {
+                var filt = $("#range-select").clone();
+                filt.find('h4').html(column);
+                var id_tag = 'filter_' + column;
+                filt.attr('id', id_tag);
+                var slide = filt.find('#template-slide');
+                slide.attr('id', id_tag + '_slider');
+                slide.attr('data-slider-min', properties.min);
+                slide.attr('data-slider-max', properties.max);
+                if (integer) {
+                    slide.attr('data-slider-step', Math.ceil((properties.max-properties.min)/100.0));
+                } else {
+                    slide.attr('data-slider-step', (properties.max-properties.min)/100);
+                }
+                slide.attr('data-slider-value', '[' + properties.min + ',' + properties.max + ']');
+                filt.removeClass('template');
+                slide.slider({});
+                $('#filters').append(filt);
+                document.getElementById(id_tag).getFilter = function() {
+                    filt.find('input').attr('data-value'); //min,max
+                    var min = JSON.parse(filt.find('input').attr('data-slider-min'))
+                    var max = JSON.parse(filt.find('input').attr('data-slider-max'))
+                    var sel = JSON.parse('['+filt.find('input').attr('data-value')+']');
+                    var sel_min = sel[0];
+                    var sel_max = sel[1];
+                    if (sel_min != min || sel_max != max) {
+                        var ret = {'ranges': {}};
+                        ret['ranges'][column] = {'min': sel_min, 'max': sel_max};
+                        return ret;
+                    }
+                    return {};
+                }
+            }
+
+            function create_text_filter(column, callback) {
+                $.get("/api/router/query", {'fields':[column]}, function(data) {
+                    var filt = $('#text-select').clone();
+                    filt.find('h4').html(column);
+                    var id_tag = 'filter_' + column;
+                    filt.attr('id', id_tag);
+                    filt.removeClass('template');
+                    selection = filt.find('select');
+                    for (ind in data) {
+                        var str = data[ind][column];
+                        selection.append('<option value="'+str+'">'+str+'</option>');
+                    }
+                    selection.multiselect();
+                    $('#filters').append(filt);
+                    document.getElementById(id_tag).getFilter = function() {
+                        var objs = filt.find('option:selected');
+                        var selection = [];
+                        for (var i = 0; i < objs.length; i++) {
+                            selection.push(objs.eq(i).val());
+                        }
+                        if (selection.length!=0) {
+                            var ret = {'matches': {}};
+                            ret['matches'][column] = selection;
+                            return ret;
+                        }
+                        return {};
+                    }
+                    if (callback)
+                        callback();
+                });
+            }
+
+            function create_bool_filter(column) {
+                var filt = $("#bool-select").clone();
+                filt.find('h4').html(column);
+                var id_tag = 'filter_' + column;
+                filt.attr('id', id_tag);
+                filt.removeClass('template');
+                $('#filters').append(filt);
+                document.getElementById(id_tag).getFilter = function() {
+                    var t = filt.find('label').eq(0).hasClass('active');
+                    var f = filt.find('label').eq(1).hasClass('active');
+                    var states = [];
+                    if (t) {
+                        states.push(1);
+                    }
+                    if (f) {
+                        states.push(0);
+                    }
+                    if (states.length!=0) {
+                        var ret = {'matches': {}};
+                        ret['matches'][column] = states;
+                        return ret;
+                    }
+                    return {};
+                };
+            }
+            
+            function handleChange() {
+                if(refresh_queue){
+                    clearTimeout(refresh_queue);
+                } 
+                refresh_queue = setTimeout(getMatches, 10);
+            }
+
+            function getMatches() {
+                query = {'fields':result_fields, 'matches':{}, 'ranges': {}};
+                filters = $("#filters").find('.filter');
+                for (var i = 0; i < filters.length; i++) {
+                    var q = filters[i].getFilter();
+                    if (q && q.matches) {
+                        for (obj in q.matches) {
+                            query.matches[obj] = q.matches[obj];
+                        }
+                    }
+                    if (q && q.ranges) {
+                        for (obj in q.ranges) {
+                            query.ranges[obj] = q.ranges[obj];
+                        }
+                    }
+                }
+                if (JSON.stringify(query) === last_query || !query.matches.type || query.matches.type.length == 0) {
+                    return;
+                }
+                last_query = JSON.stringify(query);
+                $.get("/api/router/query", query, function(data) {
+                    if (resultList) {
+                        resultList.clear();
+                        resultList.add(data);
+                    } else {
+                        resultList = new List('result-list', {'valueNames':result_fields}, data);
+                    }
+                });
+            }
+
+            function updateUsername() {
+                var uname = getCookie('username');
+                if (!uname) {
+                    $('#login-pane').modal();
+                    $('#logout').hide();
+                    $('#login').show();
+                } else {
+                    $('#username-report').html(uname);
+                    $('#logout').show();
+                    $('#login').hide();
+                }
+            }
+
+            function logout() {
+                $('#logout').hide();
+                $('#login').show();
+                document.cookie = 'username=';
+                $('#username-report').html('');
+                updateUsername();
+            }
+
+            function set_uname() {
+                var name = $('#uname_input').val();
+                $.get('/api/user/query', {'matches':{'name': [name]}}, function(data) {
+                    if (data.length != 0) {
+                        document.cookie = "username="+name;
+                        $('#login-pane').modal('hide');
+                        updateUsername();
+                    } else {
+                        alert('invalid username');
+                    }
+                });
+            }
+
+            function update_selection() {
+                console.log(selections);
+                selectionList.clear();
+                if (selections.length != 0) {
+                    selectionList.add(selections);
+                }
+            }
+
+            function load_transaction(tid) {
+                $.get('/api/transaction/query', {'matches':{'transact_id':[tid]}},function(data) {
+                    console.log(data);
+                    if (data.length != 0) {
+                        transaction_id = tid;
+                        document.cookie = 'id='+tid;
+                        // TODO: load selections from that transaction
+                        update_selection();
+                    } else {
+                        document.cookie = 'id=';
+                        alert('transaction id not found in system');
+                    }
+                });
+            }
+
+            function configure() {
+                // get the data needed to figure out the layout.
+                var tid = getUrlVars()['id'];
+                if (tid != undefined && tid !== '') {
+                    load_transaction(tid);
+                } else {
+                    tid = getCookie('id');
+                    if (tid != undefined && tid !=='') {
+                        load_transaction(tid);
+                    }
+                }
+                selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
+                selectionList.clear();
+                /*
+                $.get('/api/router', {}, function(data) {
+                    var cols = [];
+                    var table_header = $('#result-list > .table_holder > table > thead > tr');
+                    var table_body = $('#result-list > .table_holder > table > tbody > tr');
+                    for (tag in data) {
+                        cols.push(tag);
+                        var template = $("<td>", {'class': tag});
+                        if (tag != 'router_id') {
+                            var name = tag.replace(/\b\w/g, function (w) {return w.toUpperCase();});
+                            var header = $("<th>", {'class': 'sort', 'data-sort': tag}).html(name);
+                            table_header.append(header);
+                        } else {
+                            template.addClass('hidden');
+                        }
+                        table_body.append(template);
+                    }
+                    resultList = new List('result-list', {'valueNames':cols}, []);
+                    resultList.clear();
+                });
+                */
+                var table_header = $('#result-list > .table_holder > table > thead > tr');
+                var table_body = $('#result-list > .table_holder > table > tbody > tr');
+                for (var tagi in result_fields) {
+                    var tag = result_fields[tagi];
+                    var template = $("<td>", {'class': tag});
+                    if (tag != 'router_id') {
+                        var name = tag.replace(/\b\w/g, function (w) {return w.toUpperCase();});
+                        var header = $("<th>", {'class': 'sort', 'data-sort': tag}).html(name);
+                        table_header.append(header);
+                    } else {
+                        template.addClass('hidden');
+                    }
+                    table_body.append(template);
+                }
+                resultList = new List('result-list', {'valueNames':result_fields}, []);
+                resultList.clear();
+            };
+            
+            function rowClick(e) {
+                var rid = $(e).find('.router_id').html();
+                for (entry in selections) {
+                    if (selections[entry].router_id === rid) {
+                        return;
+                    }
+                }
+                selections.push({'router_id':rid,'name':$(e).find('.name').html()})
+                update_selection();
+            }
+            
+            function clear_transaction() {
+                transaction_id = undefined;
+                document.cookie = 'id=';
+                selections = [];
+                update_selection();
+                transaction_reset();
+            }
+            
+            function selectionClick(e) {
+                // post the get request and populate fields accordingly.
+                // include - also in transaction:
+                // links should prompt to save first.
+                device_display_id = $(e).find('.router_id').html();
+                $.get("/api/router/query", {'matches':{'router_id':device_display_id}}, function(data) {
+                    //$('#device_details');
+                    console.log(data);
+                    if (data[0]) {
+                        var list = $('#device_details table tbody');
+                        list.html('');
+                        for (entry in data[0]) {
+                            list.append($('<tr>').append($('<td>').html(entry)).append($('<td>').html(data[0][entry])));
+                        }
+                    }
+                    $.get("/api/transaction_map", {'router':device_display_id}, function(data) {
+                        console.log(data);
+                        $('#transaction_list').html('');
+                        if (data.length != 0) {
+                            var list = $('<ul>');
+                            for (entry in data) {
+                                var url = '/app/transactions.html?t='+data[entry].transact_id;
+                                var link = $('<a>', {href: url, target: '_blank'}).html('clickme');
+                                list.append($('<li>').html(link));
+                                //TODO: make these clickable - with all the functionality above...
+                            }
+                            $('#transaction_list').append(list);
+                        }
+                        $('#device-pane').modal();
+                    });
+                });
+            }
+
+            // reset default values to the transaction save dialog
+            function transaction_reset() {
+                $('#transaction_client').val('');
+                $('#transaction_comments').val('');
+                $('#transaction_status').children().removeClass('active');
+                $('#transaction_status').children().eq(0).addClass('active');
+            }
+            
+            function save_transaction() {
+                // we need to create a new transaction.
+                var tstat = 0;
+                var statElm = $('#transaction_status');
+                var stat_children = statElm.children();
+                for (tstat = 0; tstat < stat_children.length; tstat++) {
+                    if (stat_children.eq(tstat).hasClass('active'))
+                        break;
+                }
+                var router_adds = [];
+                for (item in selections) {
+                    router_adds.push(selections[item].router_id);
+                }
+                if (transaction_id === '' || transaction_id === undefined) {
+                    var props =
+                        {
+                            'user': $('#transaction_user').val(),
+                            'date': $('#transaction_date').val(),
+                            'status': tstat,
+                            'client': $('#transaction_client').val(),
+                            'comment': $('#transaction_comments').val()
+                        };
+                    $.post("/api/transaction", {'op':'add', 'properties':props }, function(data){
+                        console.log(data);
+                        // check that data isn't an error
+                        if (!data.lastID) {
+                            console.log('error with request');
+                            return;
+                        }
+                        transaction_id = data.lastID;
+                        var req = {'op':'add', 'transaction':transaction_id, 'routers': router_adds};
+                        console.log('mapping request:');
+                        console.log(req);
+                        $.post("/api/transaction_map", req, function(data) {
+                            console.log(data);
+                        });
+                        transaction_reset();
+                    });
+                } else {
+                    // clear the existing routers in the transaction list.
+                    $.post("/api/transaction_map", {'op':'clear','transaction':transaction_id}, function(data) {
+                        console.log(data);
+                        // add all the current selections
+                        var req = {'op':'add', 'transaction':transaction_id, 'routers': router_adds};
+                        $.post("/api/transaction_map", req, function(data) {
+                            console.log(data);
+                        });
+                    });
+                    // update the entries for the transaction
+                    var share = {'op':'update', 'id': transaction_id, 'property': '', 'new': ''};
+                    share.property = 'user';
+                    share.new = $('#transaction_user').val();
+                    $.post("/api/transaction", share);
+                    share.protperty = 'date';
+                    share.new = $('#transaction_date').val();
+                    $.post("/api/transaction", share);
+                    share.property = 'status';
+                    share.new = tstat;
+                    $.post("/api/transaction", share);
+                    share.property = 'client';
+                    share.new = $('#transaction_client').val();
+                    $.post("/api/transaction", share);
+                    share.property = 'comment';
+                    share.new = $('#transaction_comments').val();
+                    $.post("/api/transaction", share);
+                    transaction_reset();
+                }
+                $('#transaction-pane').modal('hide');
+            }
+            
+            function show_save_dialog() {
+                $('#transaction_user').val($('#username-report').html());
+                $('#transaction_date').val((new Date()).toISOString().split('T')[0]);
+                var ls = $('#transaction_devices');
+                ls.html('');
+                for (var i = 0; i < selections.length; i++) {
+                    ls.append($('<li>').html(selections[i].name));
+                }
+                // TODO: load the current transaction from the server for other props.
+                $('#transaction-pane').modal();
+            }
+            
+            function remove_selection(obj) {
+                for (var i = 0; i < selections.length; i++) {
+                    if (selections[i].router_id === device_display_id) {
+                        selections.splice(i,1);
+                    }
+                }
+                update_selection();
+                $('#device-pane').modal('hide');
+            }
+            
+            function resetFilters() {
+                $('#filters').html('');
+                load_filters();
+            }
+        </script>
+        <style>
+            #username-report {
+                font-weight: bold;
+            }
+            .template {
+                display: none;
+            }
+            h5 > a {
+                cursor: pointer;
+            }
+            .filter-title {
+                float:left;
+                margin-right:20px;
+            }
+            .filter-input {
+                float:left;
+            }
+            .search {
+                width: 100%;
+                margin-top: 10px;
+                margin-bottom: 0px;
+            }
+            
+            .sort {
+                background-color: #aaa;
+                box-shadow: inset 0 1px 0 #fff;
+            }
+
+            .sort:hover {
+                text-decoration: none;
+                background-color:#1b8aba;
+            }
+
+            .sort:focus {
+                outline:none;
+            }
+
+            .sort:after {
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 5px solid transparent;
+                content:"";
+                position: relative;
+                top:-10px;
+                right:-5px;
+            }
+
+            .sort.asc:after {
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #fff;
+                content:"";
+                position: relative;
+                top:13px;
+                right:-5px;
+            }
+
+            .sort.desc:after {
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 5px solid #fff;
+                content:"";
+                position: relative;
+                top:-10px;
+                right:-5px;
+            }
+            
+            tr.clickable {
+                background-color: #f7f7f7;
+                cursor: pointer;
+            }
+
+            tr.clickable:hover {
+                background: white;
+                box-shadow: inset 5px 5px 5px #999;
+            }
+            
+            #transaction_status .btn {
+                opacity: .5;
+            }
+            
+            #transaction_status .active {
+                opacity: 1;
+            }
+            
+            #device_details > table {
+                margin: auto;
+            }
+            
+            #device_details > table th {
+                padding: 15px;
+                border: 1px solid #ddd;
+            }
+            
+            #device_details > table td {
+                min-width: 100px;
+                padding: 5px;
+                padding-left: 15px;
+                padding-right: 15px;
+                border: 1px solid #ddd;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-6">
+                    <h1>Device Selector</h1>
+                </div>
+                <div class="col-sm-6" style="text-align: right;">
+                    <p style="margin-top:20px;">logged in as: <span id="username-report"></span> <a id="logout" onclick="logout();">(logout)</a><a id="login" onclick="updateUsername();">(login)</a></p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3" >
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">Filters</h2>
+                        </div>
+                        <div class="panel-body" style="max-height: 500px; overflow:scroll;">
+                            <div id="filters" onmouseup='handleChange();'>
+                            </div>
+                            <button class='btn btn-danger' onclick='resetFilters();' style="width:100%;">Reset Filters</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">Results</h2>
+                        </div>
+                        <div class="panel-body">
+                            <div id="result-list">
+                                <input class="search" placeholder="Search" />
+                                <div class="table_holder table-bordered" style='overflow:scroll;'>
+                                    <table class="table" style="margin: auto;">
+                                        <thead>
+                                            <tr></tr>
+                                        </thead>
+                                        <tbody class="list">
+                                            <tr class="clickable" onclick="rowClick(this);" id="template-row"></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">Selections</h2>
+                        </div>
+                        <div class="panel-body">
+                            <div id="selection-list">
+                                <input class="search" placeholder="Search" />
+                                <div class="table_holder table-bordered">
+                                    <table class="table" style="margin: auto;">
+                                        <thead>
+                                            <tr><th class='sort' data-sort='name'>Name</th></tr>
+                                        </thead>
+                                        <tbody class="list">
+                                            <tr class="clickable" onclick="selectionClick(this);" id="template-row2"><td class='name'></td><td class='router_id hidden'></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="row" style='margin-top:20px;'>
+                                <div class="col-sm-6">
+                                    <button class='btn btn-primary' onclick='show_save_dialog();' style="width:100%;">Save</button>
+                                </div>
+                                <div class="col-sm-6">
+                                    <button class='btn btn-info' onclick='getMatches();' style="width:100%;">Export</button>
+                                </div>
+                            </div>
+                            <button class='btn btn-danger' onclick='clear_transaction();' style='width:100%; margin-top: 20px;'>New Transaction</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="text-select" class="template filter">
+            <h4 class="filter-title">title</h4>
+            <select class="filter-input" multiple="multiple">
+            </select>
+            <hr style="clear:both;"/>
+        </div>
+        <div id="range-select" class="template filter">
+            <h4 class="filter-title">title</h4>
+            <input class="filter-input span2" style="width:100%;" id="template-slide" type="text" value="" data-slider-min="10" data-slider-max="1000" data-slider-step="5" data-slider-value="[250,450]"/>
+            <hr style="clear:both;"/>
+        </div>
+        <div id="bool-select" class="template filter">
+            <h4 class="filter-title">title</h4>
+            <div class="btn-group" class="filter-input" data-toggle="buttons">
+                <label class="btn btn-default">
+                    <input type="checkbox">YES
+                </label>
+                <label class="btn btn-default">
+                    <input type="checkbox">NO
+                </label>
+            </div>
+            <hr style="clear:both;"/>
+        </div>
+        
+        <!-- The Modal view that is displayed to log a user in -->
+        <div id="login-pane" class="modal fade" role='dialog'>
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">User name:</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form onsubmit='try{set_uname();}catch(e){} return false;'>
+                            <input type="text" id="uname_input">
+                            <button type="button" onclick="set_uname();">Login</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- The Modal view for examining the details of a router -->
+        <div id="device-pane" class="modal fade" role='dialog'>
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Device Details</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div id="device_details">
+                            <table>
+                                <thead>
+                                    <tr><th>Property</th><th>Value</th></tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <hr/>
+                        <h4>Transaction references</h4>
+                        <div id="transaction_list">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger btn-block" onclick="remove_selection(this);">Remove</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- The Modal view that is displayed when a transaction is being saved -->
+        <div id="transaction-pane" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Save Transaction</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form class="form-horizontal" role="form">
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_user'>Username</label>
+                                <div class='col-sm-10'>
+                                    <input class="form-control" type='text' id='transaction_user' disabled='true'>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_date'>Date</label>
+                                <div class='col-sm-10'>
+                                    <input class="form-control" type='date' id='transaction_date'>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_date'>Status</label>
+                                <div class='col-sm-10'>
+                                    <div class='btn-group' data-toggle='buttons' id='transaction_status'>
+                                        <label class='btn btn-success active'><input type='radio' name='status' value='0'>Open</label>
+                                        <label class='btn btn-danger'><input type='radio' name='status' value='1'>Closed</label>
+                                        <label class='btn btn-primary'><input type='radio' name='status' value='2'>Abandoned</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_client'>Client</label>
+                                <div class='col-sm-10'>
+                                    <input class="form-control" type='text' id='transaction_client'>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_comments'>Comments</label>
+                                <div class='col-sm-10'>
+                                    <textarea style='resize: vertical;' class="form-control" rows='5' id='transaction_comments'></textarea>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <label class="control-label col-sm-2" for='transaction_devices'>Devices</label>
+                                <div class='col-sm-10'>
+                                    <ul id='transaction_devices'>
+                                        
+                                    </ul>
+                                </div>
+                            </div>
+                            <button type="button" onclick="save_transaction();" class="btn btn-success btn-block">Save</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            configure();
+            update_users();
+            updateUsername();
+            load_filters();
+        </script>
+    </body>
+</html>

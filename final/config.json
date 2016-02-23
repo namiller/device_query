@@ -1,0 +1,25 @@
+{
+	"name": "Fruit",
+	"properties": [{
+        "name": "type",
+        "type": "TEXT"
+    }, {
+        "name": "name",
+        "type": "TEXT" 
+    }, {
+        "name": "vendor",
+        "type": "TEXT"
+    }, {
+        "name": "sku",
+        "type": "TEXT"
+    }, {
+		"name": "citrus",
+		"type": "BOOLEAN"
+	}, {
+		"name": "shape",
+		"type": "TEXT"
+	}, {
+		"name": "price",
+		"type": "REAL"
+	}]
+}

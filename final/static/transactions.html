@@ -1,0 +1,41 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="shared/bootstrap.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="admin.css">
+        <script src="shared/jquery.min.js"></script>
+        <script src="shared/list.min.js"></script>
+        <script src="shared/bootstrap.min.js"></script>
+        <script src="api.js"></script>
+        <script>
+        function showTransaction(id) {
+            $('#tpane_tid').html(id);
+            $('#transaction-pane').modal();
+        }
+        </script>
+    </head>
+    <body>
+        <h1 id="username"></h1>
+        <div id="transaction-pane" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Transaction <span id='tpane_tid'></span></h4>
+                    </div>
+                    <div class="modal-body">
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            $('#username').html(getCookie('username'));
+            var queryString = getUrlVars();
+            if (queryString['t']) {
+                showTransaction(queryString['t']);
+            }
+        </script>
+    </body>
+</html>

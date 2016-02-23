@@ -1,0 +1,17 @@
+{
+  "name": "rselect",
+  "version": "1.0.0",
+  "description": "Project for baktha",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Nolan",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^1.5.2",
+    "body-parser": "^1.14.2",
+    "express": "^4.13.3",
+    "sqlite3": "^3.1.1"
+  }
+}

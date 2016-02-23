@@ -1,0 +1,208 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="shared/bootstrap.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="admin.css">
+        <script src="shared/jquery.min.js"></script>
+        <script src="shared/list.min.js"></script>
+        <script src="shared/bootstrap.min.js"></script>
+        <script src="api.js"></script>
+    </head>
+    <body>
+        <div id="list-view">
+            <input class="search" placeholder="Search" />
+            <div class="table_holder table-bordered">
+                <table class="table" style="margin: auto;">
+                    <thead>
+                        <tr></tr>
+                    </thead>
+                    <tbody class="list">
+                        <tr class="clickable" onclick="rowClick(this);" id="template-row"></tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-success" onclick="$('#routerAdd').modal();" style="display: block; width:100%;">New Device</button>
+        </div>
+        <!-- The Modal view that is displayed when a row is clicked for editing -->
+        <div id="routerEdit" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Edit Devices #<span id="edited_id"></span></h4>
+                    </div>
+                    <div class="modal-body">
+                        <form class="form-horizontal" role="form">
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <button type="button" onclick="edit_button();" class="btn btn-primary btn-block">Save</button>
+                            </div>
+                            <div class="col-sm-4">
+                                <button type="button" class="btn btn-danger btn-block" onclick="delete_button();">DELETE ENTRY</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- The Modal view that is displayed when the add button is clicked for adding -->
+        <div id="routerAdd" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Add Device</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form class="form-horizontal" role="form">
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" onclick="add_button();" class="btn btn-primary btn-block">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            var routerList;
+            var cols = [];
+            configure = function() {
+                // get the data needed to figure out the layout.
+                $.get('/api/router', {}, function(data) {
+                    cols = [];
+                    var table_header = $('#list-view > .table_holder > table > thead > tr');
+                    var table_body = $('#list-view > .table_holder > table > tbody > tr');
+                    var edit_form = $("#routerEdit .modal-body form");
+                    var add_form = $("#routerAdd .modal-body form");
+                    var key_data = [];
+                    for (tag in data) {
+                        key_data[data[tag].index] = {'key': tag, 'data': data[tag]};
+                    }
+                    for (var i in key_data) {
+                        var tag = key_data[i];
+                        console.log(tag);
+                        //cols[data[tag].index] = tag.key;
+                        cols.push(tag.key);
+                        var template = $("<td>", {'class': tag.key});
+                        if (tag.key != 'router_id') {
+                            var name = tag.key.replace(/\b\w/g, function (w) {return w.toUpperCase();});
+                            var header = $("<th>", {'class': 'sort', 'data-sort': tag.key}).html(name);
+                            table_header.append(header);
+
+                            // Create the input in the Edit modal 
+                            var e_tag = 'edit_'+tag.key;
+                            var e_form = sql_form_input(tag.data.type, tag.key);
+                            e_form.attr('id', e_tag);
+                            var e_div = $('<div>', {'class':'col-sm-10'}).append(e_form);
+                            var e_label = $('<label>', {'class': 'control-label col-sm-2', 'for':e_tag}).html(name+":")
+                            var e_grp = $('<div>', {'class': 'form-group'}).append(e_label).append(e_div);
+                            edit_form.append(e_grp);
+
+                            // Create the input in the Add modal
+                            var a_tag = 'add_'+tag.key;
+                            var a_form = sql_form_input(tag.data.type, tag.key);
+                            a_form.attr('id', a_tag);
+                            var a_div = $('<div>', {'class':'col-sm-10'}).append(a_form);
+                            var a_label = $('<label>', {'class': 'control-label col-sm-2', 'for':a_tag}).html(name+":")
+                            var a_grp = $('<div>', {'class': 'form-group'}).append(a_label).append(a_div);
+                            add_form.append(a_grp);
+                        } else {
+                            template.addClass('hidden');
+                        }
+                        table_body.append(template);
+                    }
+                    load_routers();
+                });
+            };
+
+            load_routers = function() {
+                var query = {'fields': cols, 'matches':{}, 'ranges': {}, 'searches': []};
+                $.get("/api/router/query", query, function(data) {
+                    if (routerList) {
+                        routerList.clear();
+                        routerList.add(data);
+                    } else {
+                        routerList = new List('list-view', {'valueNames':cols}, data);
+                    }
+                });
+            };
+
+            add_router = function(properties) {
+                $.post("/api/router", {'op': 'add', 'properties':properties});
+            };
+
+            update_router = function(id, properties) {
+                for (var prop in properties) {
+                    $.post('/api/router', {'op':'update', 'property':prop, 'id': id, 'new': properties[prop]});
+                }
+            };
+
+            delete_router = function(uid) {
+                $.post("/api/router", {'op': 'delete', 'id':uid});
+            };
+
+            function delete_button() {
+                delete_router(JSON.parse($("#edited_id").html()));
+                $("#routerEdit").modal('hide');
+                load_routers();
+            }
+
+            function edit_button(e) {
+                var id = $('#edited_id').html();
+                var props = {};
+                for (var i = 0; i < cols.length; i++) {
+                    if (cols[i] != 'router_id') {
+                        var val = get_sql_form_value($('#edit_'+cols[i]));
+                        if (val!=='' && val!==undefined) {
+                            if (val.toLowerCase !== undefined)
+                                props[cols[i]] = val.toLowerCase(); //Change this for case sensitivity
+                            else
+                                props[cols[i]] = val;
+                        }
+                    }
+                }
+                update_router(id, props);
+                $("#routerEdit").modal('hide');
+                load_routers();
+            }
+
+            function add_button(e) {
+                //add_router($("#add_name").val(), $("#add_email").val());
+                var props = {};
+                for (var i = 0; i < cols.length; i++) {
+                    if (cols[i] != 'router_id') {
+                        var val = get_sql_form_value($('#add_'+cols[i]));
+                        if (val!=='' && val!==undefined && val!==null) {
+                            if (val.toLowerCase !== undefined)
+                                props[cols[i]] = val.toLowerCase(); //Change this for case sensitivity
+                            else
+                                props[cols[i]] = val;
+                        }
+                        set_sql_form_value($('#add_'+cols[i]), '');
+                    }
+                }
+                add_router(props);
+                $("#routerAdd").modal('hide');
+                load_routers();
+            }
+
+            function rowClick(ctx) {
+                context = ctx;
+                var properties = {};
+                for (var i = 0; i < cols.length; i++) {
+                    if (cols[i] == 'router_id') {
+                        $('#edited_id').html(ctx.children[i].innerHTML);
+                    } else {
+                        set_sql_form_value($('#edit_'+cols[i]), ctx.children[i].innerHTML);
+                    }
+                }
+                $("#routerEdit").modal();
+            }
+
+            configure();
+        </script>
+    </body>
+</html>

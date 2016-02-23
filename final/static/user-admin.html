@@ -1,0 +1,150 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="shared/bootstrap.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="admin.css">
+        <script src="shared/jquery.min.js"></script>
+        <script src="shared/list.min.js"></script>
+        <script src="shared/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <div id="list-view">
+            <input class="search" placeholder="Search" />
+            <div class="table_holder table-bordered">
+                <table class="table" style="margin: auto;">
+                    <thead>
+                        <tr><th class="sort" data-sort="name">Name</th><th class="sort" data-sort="email">Email</th></tr>
+                    </thead>
+                    <tbody class="list">
+                        <tr class="clickable" onclick="rowClick(this);" id="template-row"><td class="name"></td><td class="email"></td><td class="user_id hidden"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        <button class="btn btn-success" onclick="$('#userAdd').modal();" style="display: block; width:100%;">New User</button>
+        </div>
+        
+        <div id="userEdit" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Edit User #<span id="edited_uid"></span></h4>
+                    </div>
+                    <div class="modal-body">
+                        <form class="form-horizontal" role="form">
+                            <div class="form-group">
+                                <label class="control-label col-sm-2" for="edit_name">Name:</label>
+                                <div class="col-sm-10">
+                                    <input class="form-control" id="edit_name" type="text">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label col-sm-2" for="edit_email">Email:</label>
+                                <div class="col-sm-10">
+                                    <input class="form-control" id="edit_email" type="email">
+                                </div>
+                            </div>
+                            <button type="submit" onclick="edit_button();" class="btn btn-primary btn-block">Save</button>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger" onclick="delete_button();">DELETE USER</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="userAdd" class="modal fade" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h4 class="modal-title">Add User</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form class="form-horizontal" role="form">
+                            <div class="form-group">
+                                <label class="control-label col-sm-2" for="add_name">Name:</label>
+                                <div class="col-sm-10">
+                                    <input class="form-control" id="add_name" type="text">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label col-sm-2" for="add_email">Email:</label>
+                                <div class="col-sm-10">
+                                    <input class="form-control" id="add_email" type="email">
+                                </div>
+                            </div>
+                            <button type="submit" onclick="add_button();" class="btn btn-primary btn-block">Add</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            var userList;
+            load_users = function() {
+                var query = {'fields': ['name', 'email', 'user_id'], 'matches':{}, 'ranges': {}, 'searches': []};
+                $.get("/api/user/query", query, function(data) {
+                    if (userList) {
+                        userList.clear();
+                        userList.add(data);
+                    } else {
+                        userList = new List('list-view', {'valueNames':['name', 'email', 'user_id']}, data);
+                    }
+                });
+            };
+
+            add_user = function(name, email) {
+                console.log('calling add');
+                $.post("/api/user", {'op': 'add', 'properties':{'name': name, 'email': email}});
+            };
+            
+// TODO: wrap update into a single command for multiple fields.
+
+            update_user = function(name, email, id) {
+                $.post("/api/user", {'op': 'update', 'property':'name', 'id':id, 'new':name});
+                $.post("/api/user", {'op': 'update', 'property':'email', 'id':id, 'new':email});
+            };
+
+            delete_user = function(uid) {
+                $.post("/api/user", {'op': 'delete', 'id':uid});
+            };
+
+            function delete_button() {
+                delete_user(JSON.parse($("#edited_uid").html()));
+                $("#userEdit").modal('hide');
+                load_users();
+            }
+
+            function edit_button() {
+                update_user($("#edit_name").val(), $("#edit_email").val(), JSON.parse($("#edited_uid").html()));
+                $("#userEdit").modal('hide');
+                load_users();
+            }
+
+            function add_button() {
+                console.log('add button press');
+                add_user($("#add_name").val(), $("#add_email").val());
+                $("#add_name").val('');
+                $("#add_email").val('');
+                $("#userAdd").modal('hide');
+                load_users();
+            }
+
+            function rowClick(ctx) {
+                context = ctx;
+                var user_name = ctx.children[0].innerHTML;
+                var user_email = ctx.children[1].innerHTML;
+                var user_id = ctx.children[2].innerHTML;
+                $("#edit_name").val(user_name);
+                $("#edit_email").val(user_email);
+                $("#edited_uid").html(user_id);
+                $("#userEdit").modal();
+            }
+
+            load_users();
+        </script>
+    </body>
+</html>
