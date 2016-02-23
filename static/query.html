@@ -589,6 +589,27 @@
                 padding-right: 15px;
                 border: 1px solid #ddd;
             }
+            
+            #transaction_table > table {
+                margin: auto;
+            }
+            
+            #transaction_table > table th {
+                padding: 15px;
+                border: 1px solid #ddd;
+            }
+            
+            #transaction_table > table td {
+                min-width: 100px;
+                padding: 5px;
+                padding-left: 15px;
+                padding-right: 15px;
+                border: 1px solid #ddd;
+            }
+            #transaction_table > table td:hover {
+                background-color: #ccf;
+            }
+            
         </style>
     </head>
     <body>
@@ -733,6 +754,19 @@
                         <hr/>
                         <h4>Transaction references</h4>
                         <div id="transaction_list">
+                        </div>
+                        <div id="transaction_table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                     <div class="modal-footer">
