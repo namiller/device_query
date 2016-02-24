@@ -20,6 +20,7 @@ console.log(config);
 var router_cols, user_cols, transaction_cols, transaction_map_cols;
 // TODO: implement min/max of numerics on server side.
 db.serialize(function() {
+    db.run("PRAGMA foreign_keys = ON");
     if (!exists) {
         db.run("CREATE TABLE routers (router_id INTEGER PRIMARY KEY)");
         db.run("CREATE TABLE users (user_id INTEGER PRIMARY KEY, name TEXT, email TEXT)"); //TODO: consider adding username TEXT

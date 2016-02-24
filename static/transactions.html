@@ -8,14 +8,58 @@
         <script src="shared/bootstrap.min.js"></script>
         <script src="api.js"></script>
         <script>
-        function showTransaction(id) {
-            $('#tpane_tid').html(id);
-            $('#transaction-pane').modal();
-        }
+            var transactionTable;
+            var username;
+            var fields = ['client', 'status', 'date','transact_id'];
+            function showTransaction(id) {
+                $('#tpane_tid').html(id);
+                $('#transaction-pane').modal();
+            }
+            function loadTransactions(user) {
+                if (!transactionTable) {
+                    transactionTable = new List('transaction-list', {'valueNames':fields},[]);
+                }
+                transactionTable.clear();
+                $.get('/api/transaction/query', {'fields':fields, 'matches':{'user':[user]}}, function(data) {
+                    console.log(data);
+                    for (ind in data) {
+                        data[ind].status = data[ind].status == 0?'Active':(data[ind].status==1?'Closed':'Abandoned');
+                        var r = transactionTable.add(data[ind]);
+                        share = r[0];
+                        r[0].elm.onclick = showTransaction.bind(this, data[ind].transact_id);
+                    }
+                    transactionTable.sort('date', {'order':'desc'});
+                });
+            }
+            function updateUname(e) {
+                console.log(e);
+                username = $('#username').val();
+                loadTransactions(username);
+            }
+            function openTransaction() {
+                location.href = '/app/query.html?id='+$('#tpane_tid').html();
+            }
         </script>
     </head>
     <body>
-        <h1 id="username"></h1>
+        <label>Name: </label><input id="username" type="text" onchange="updateUname(this);">
+        <div id="transaction-list">
+            <input class="search" placeholder="Search">
+            <div class="table_holder table-bordered">
+                <table class="table" style="margin: auto;">
+                    <thead>
+                        <tr>
+                            <th class='sort' data-sort='client'>Client</th>
+                            <th class='sort' data-sort='status'>Status</th>
+                            <th class='sort' data-sort='date'>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="list">
+                        <tr class='clickable'><td class='client'></td><td class='status'></td><td class='date'></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        
         <div id="transaction-pane" class="modal fade" role="dialog">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -26,12 +70,17 @@
                     <div class="modal-body">
                         
                     </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" onclick="openTransaction();">Open</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteTransaction();">Delete</button><!-- only if user is current user-->
+                    </div>
                 </div>
             </div>
         </div>
 
         <script>
-            $('#username').html(getCookie('username'));
+            $('#username').val(getCookie('username'));
+            updateUname();
             var queryString = getUrlVars();
             if (queryString['t']) {
                 showTransaction(queryString['t']);
