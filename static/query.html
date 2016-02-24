@@ -15,38 +15,13 @@
         <script>
             var resultList;
             var selectionList;
+            var transactionList;
             var transaction_id;
             var selections = [];
             var refresh_queue;
             var last_query;
             var result_fields = ['router_id', 'name', 'vendor', 'sku'];
             var device_display_id = -1;
-            add = {'op': 'add', 'properties':{'name': 'my_router', 'price': 4.1}};
-            update = {'op': 'update', 'property':'name', 'id': 1, 'new': 'orange'};
-            send_post = function(obj) {
-                $.post("/api/router", obj, function(data) {
-                    console.log(data);
-                });
-            };
-            query = {'fields': ['name', 'price'], 'matches':{}, 'ranges': {}, 'searches': [{'string': 'router', 'field' : 'name', 'start':false}]};
-            send_get = function(obj) {
-                $.get("/api/router/query", obj, function(data) {
-                    console.log(data);
-                });
-            };
-
-            //TODO: add ability to adjust ranges based on filters
-            users = [];
-            function update_users() {
-                $.get("/api/user/query", {'fields': ['name']}, function(data) {
-                    console.log(data);
-                    users = [];
-                    for (ind in data) {
-                        users.push(data[ind].name);
-                    }
-                    $("#username").easyAutocomplete({data: users});
-                });
-            }
             
             function load_filters() {
                 var fix_order = function(order) {
@@ -79,11 +54,11 @@
                                 create_bool_filter(sorted[col].key);
                                 break;
                             case 4:
-                                create_text_filter(sorted[col].key, fix_order.bind(this, sorted)); // does async data pull so need to fix after.
+                                create_text_filter(sorted[col].key, fix_order.bind(this, sorted));
                                 break;
                         }
                     }
-                    fix_order();
+                    fix_order(sorted);
                 });
             }
             
@@ -264,7 +239,16 @@
                     if (data.length != 0) {
                         transaction_id = tid;
                         document.cookie = 'id='+tid;
-                        // TODO: load selections from that transaction
+                        $.get('/api/transaction_map', {'transaction':tid}, function(data){
+                            console.log(data);
+                            for (ind in data) {
+                                var q = {'fields': ['name', 'router_id'],'matches':{'router_id':[data[ind].router_id]}};
+                                $.get('/api/router/query', q, function(data){
+                                    selections.push(data[0]); //careful id is a string not an int now...
+                                    update_selection();
+                                });
+                            }
+                        });
                         update_selection();
                     } else {
                         document.cookie = 'id=';
@@ -286,27 +270,6 @@
                 }
                 selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
                 selectionList.clear();
-                /*
-                $.get('/api/router', {}, function(data) {
-                    var cols = [];
-                    var table_header = $('#result-list > .table_holder > table > thead > tr');
-                    var table_body = $('#result-list > .table_holder > table > tbody > tr');
-                    for (tag in data) {
-                        cols.push(tag);
-                        var template = $("<td>", {'class': tag});
-                        if (tag != 'router_id') {
-                            var name = tag.replace(/\b\w/g, function (w) {return w.toUpperCase();});
-                            var header = $("<th>", {'class': 'sort', 'data-sort': tag}).html(name);
-                            table_header.append(header);
-                        } else {
-                            template.addClass('hidden');
-                        }
-                        table_body.append(template);
-                    }
-                    resultList = new List('result-list', {'valueNames':cols}, []);
-                    resultList.clear();
-                });
-                */
                 var table_header = $('#result-list > .table_holder > table > thead > tr');
                 var table_body = $('#result-list > .table_holder > table > tbody > tr');
                 for (var tagi in result_fields) {
@@ -328,7 +291,7 @@
             function rowClick(e) {
                 var rid = $(e).find('.router_id').html();
                 for (entry in selections) {
-                    if (selections[entry].router_id === rid) {
+                    if (selections[entry].router_id == rid) {
                         return;
                     }
                 }
@@ -342,35 +305,49 @@
                 selections = [];
                 update_selection();
                 transaction_reset();
+                // remove the query string from the url - gets rid of qs id setting which would mess up refresh behaviour.
+                // forces a reload unfortunately.
+                window.location = window.location.pathname;
             }
             
             function selectionClick(e) {
-                // post the get request and populate fields accordingly.
-                // include - also in transaction:
-                // links should prompt to save first.
                 device_display_id = $(e).find('.router_id').html();
-                $.get("/api/router/query", {'matches':{'router_id':device_display_id}}, function(data) {
-                    //$('#device_details');
+                $.get("/api/router/query", {'matches':{'router_id':[device_display_id]}}, function(data) {
                     console.log(data);
                     if (data[0]) {
                         var list = $('#device_details table tbody');
                         list.html('');
                         for (entry in data[0]) {
-                            list.append($('<tr>').append($('<td>').html(entry)).append($('<td>').html(data[0][entry])));
+                            if (entry != 'router_id') {
+                                list.append($('<tr>').append($('<td>').html(entry)).append($('<td>').html(data[0][entry])));
+                            }
                         }
                     }
                     $.get("/api/transaction_map", {'router':device_display_id}, function(data) {
-                        console.log(data);
-                        $('#transaction_list').html('');
                         if (data.length != 0) {
-                            var list = $('<ul>');
-                            for (entry in data) {
-                                var url = '/app/transactions.html?t='+data[entry].transact_id;
-                                var link = $('<a>', {href: url, target: '_blank'}).html('clickme');
-                                list.append($('<li>').html(link));
-                                //TODO: make these clickable - with all the functionality above...
+                            var line = $('<tr>');
+                            var listed_fields = ['transact_id','user', 'status', 'date'];
+                            if (!transactionList) {
+                                transactionList = new List('transaction-list', {'valueNames':listed_fields}, []);
+                                transactionList.clear();
+                            } else {
+                                transactionList.clear();
                             }
-                            $('#transaction_list').append(list);
+                            for (entry in data) {
+                                var tid = data[entry].transact_id;
+                                var quer = {'fields':listed_fields, 'matches':{'transact_id':[tid]}};
+                                $.get("/api/transaction/query", quer, function(data) {
+                                    console.log(data);
+                                    shared = data;
+                                    data[0].status = data[0].status == 0?'Active':(data[0].status==1?'Closed':'Abandoned');
+                                    var r = transactionList.add(data);
+                                    var url = '/app/transactions.html?t=' + r[0]._values.transact_id;
+                                    r[0].elm.onclick = function() {
+                                        window.open(url, '_blank');
+                                    }
+                                    console.log(r);
+                                });
+                            }
                         }
                         $('#device-pane').modal();
                     });
@@ -422,6 +399,7 @@
                             console.log(data);
                         });
                         transaction_reset();
+                        document.cookie = 'id='+transaction_id;
                     });
                 } else {
                     // clear the existing routers in the transaction list.
@@ -438,7 +416,7 @@
                     share.property = 'user';
                     share.new = $('#transaction_user').val();
                     $.post("/api/transaction", share);
-                    share.protperty = 'date';
+                    share.property = 'date';
                     share.new = $('#transaction_date').val();
                     $.post("/api/transaction", share);
                     share.property = 'status';
@@ -451,6 +429,7 @@
                     share.new = $('#transaction_comments').val();
                     $.post("/api/transaction", share);
                     transaction_reset();
+                    document.cookie = 'id='+transaction_id;
                 }
                 $('#transaction-pane').modal('hide');
             }
@@ -463,7 +442,20 @@
                 for (var i = 0; i < selections.length; i++) {
                     ls.append($('<li>').html(selections[i].name));
                 }
-                // TODO: load the current transaction from the server for other props.
+                if (transaction_id) {
+                    $.get("/api/transaction/query", {'matches':{'transact_id':[transaction_id]}}, function(data){
+                        if (data.length != 0) {
+                            $('#transaction_user').val(data[0].user);
+                            $('#transaction_date').val(data[0].date);
+                            $('#transaction_comments').val(data[0].comment);
+                            $('#transaction_client').val(data[0].client);
+                            $('#transaction_status').children().removeClass('active');
+                            $('#transaction_status').children().eq(data[0].status).addClass('active');
+                            // TODO: there seems to be an error with username storage (its the date...)
+                        }
+                        console.log(data);
+                    });
+                }
                 $('#transaction-pane').modal();
             }
             
@@ -504,21 +496,17 @@
                 margin-top: 10px;
                 margin-bottom: 0px;
             }
-            
             .sort {
                 background-color: #aaa;
                 box-shadow: inset 0 1px 0 #fff;
             }
-
             .sort:hover {
                 text-decoration: none;
                 background-color:#1b8aba;
             }
-
             .sort:focus {
                 outline:none;
             }
-
             .sort:after {
                 width: 0;
                 height: 0;
@@ -530,7 +518,6 @@
                 top:-10px;
                 right:-5px;
             }
-
             .sort.asc:after {
                 width: 0;
                 height: 0;
@@ -542,7 +529,6 @@
                 top:13px;
                 right:-5px;
             }
-
             .sort.desc:after {
                 width: 0;
                 height: 0;
@@ -554,34 +540,27 @@
                 top:-10px;
                 right:-5px;
             }
-            
             tr.clickable {
                 background-color: #f7f7f7;
                 cursor: pointer;
             }
-
             tr.clickable:hover {
                 background: white;
                 box-shadow: inset 5px 5px 5px #999;
             }
-            
             #transaction_status .btn {
                 opacity: .5;
             }
-            
             #transaction_status .active {
                 opacity: 1;
             }
-            
             #device_details > table {
                 margin: auto;
             }
-            
             #device_details > table th {
                 padding: 15px;
                 border: 1px solid #ddd;
             }
-            
             #device_details > table td {
                 min-width: 100px;
                 padding: 5px;
@@ -589,27 +568,22 @@
                 padding-right: 15px;
                 border: 1px solid #ddd;
             }
-            
-            #transaction_table > table {
+            #transaction-list table {
                 margin: auto;
             }
-            
-            #transaction_table > table th {
-                padding: 15px;
-                border: 1px solid #ddd;
-            }
-            
-            #transaction_table > table td {
+            /*
+            #transaction-list table > tbody tr {
                 min-width: 100px;
                 padding: 5px;
                 padding-left: 15px;
                 padding-right: 15px;
                 border: 1px solid #ddd;
+                cursor: pointer;
+                background-color
             }
-            #transaction_table > table td:hover {
-                background-color: #ccf;
-            }
-            
+            #transaction-list table > tbody tr:hover {
+                background-color: #3366BB;
+            }*/
         </style>
     </head>
     <body>
@@ -752,21 +726,23 @@
                             </table>
                         </div>
                         <hr/>
-                        <h4>Transaction references</h4>
-                        <div id="transaction_list">
-                        </div>
-                        <div id="transaction_table">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Status</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                </tbody>
-                            </table>
+                        <h4>Transaction References</h4>
+                        <div id="transaction-list">
+                            <input class="search" placeholder="Search" />
+                            <div class="table_holder table-bordered">
+                                <table class="table" style="margin: auto;">
+                                    <thead>
+                                        <tr>
+                                            <th class='sort' data-sort='user'>User</th>
+                                            <th class='sort' data-sort='status'>Status</th>
+                                            <th class='sort' data-sort='date'>Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="list">
+                                        <tr class='clickable'><td class='user'></td><td class='status'></td><td class='date'></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -836,7 +812,6 @@
         </div>
         <script>
             configure();
-            update_users();
             updateUsername();
             load_filters();
         </script>
