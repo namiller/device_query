@@ -18,7 +18,6 @@ var config = JSON.parse(configs_raw);
 console.log(config);
 
 var router_cols, user_cols, transaction_cols, transaction_map_cols;
-// TODO: implement min/max of numerics on server side.
 db.serialize(function() {
     db.run("PRAGMA foreign_keys = ON");
     if (!exists) {

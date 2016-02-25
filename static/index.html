@@ -3,6 +3,7 @@
         <link rel="stylesheet" href="shared/bootstrap.min.css">
         <script src="shared/jquery.min.js"></script>
         <script src="shared/bootstrap.min.js"></script>
+        <script src="api.js"></script>
         <style>
             .unselected-button{
                 background-color: white;
@@ -43,26 +44,30 @@
                     }
                 }
             }
+            changeFrame = function(caller) {
+                var page = document.getElementById("page-view");
+                page.src = caller + ".html";
+                document.cookie = 'loaded_page='+caller;
+            };
        </script>
     </head>
     <body>
         <div class="container">
             <div class="header">
                 <ul id="navbar" class="nav nav-tabs">
-                    <li><a onclick="changeFrame(this);">query</a></li>
-                    <li><a onclick="changeFrame(this);">transactions</a></li>
-                    <li><a onclick="changeFrame(this);">device-admin</a></li>
-                    <li><a onclick="changeFrame(this);">user-admin</a></li>
+                    <li><a onclick="changeFrame(this.innerHTML);">query</a></li>
+                    <li><a onclick="changeFrame(this.innerHTML);">transactions</a></li>
+                    <li><a onclick="changeFrame(this.innerHTML);">device-admin</a></li>
+                    <li><a onclick="changeFrame(this.innerHTML);">user-admin</a></li>
                 </ul>
             </div>
             <iframe id="page-view" src="query.html" onLoad="setTab();"></iframe>
         </div>
         <script>
-            changeFrame = function(caller) {
-                var page = document.getElementById("page-view");
-                var newView = caller.innerHTML;
-                page.src = newView + ".html";
-            };
+            var page = getCookie('loaded_page');
+            if (page) {
+                changeFrame(page);
+            }
         </script>
     </body>
 </html>

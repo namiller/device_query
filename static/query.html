@@ -339,7 +339,7 @@
                                 $.get("/api/transaction/query", quer, function(data) {
                                     console.log(data);
                                     shared = data;
-                                    data[0].status = data[0].status == 0?'Active':(data[0].status==1?'Closed':'Abandoned');
+                                    data[0].status = data[0].status == 0?'Open':(data[0].status==1?'Closed':'Abandoned');
                                     var r = transactionList.add(data);
                                     var url = '/app/transactions.html?t=' + r[0]._values.transact_id;
                                     r[0].elm.onclick = function() {
@@ -451,7 +451,6 @@
                             $('#transaction_client').val(data[0].client);
                             $('#transaction_status').children().removeClass('active');
                             $('#transaction_status').children().eq(data[0].status).addClass('active');
-                            // TODO: there seems to be an error with username storage (its the date...)
                         }
                         console.log(data);
                     });

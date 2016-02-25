@@ -2,10 +2,12 @@
     <head>
         <link rel="stylesheet" href="shared/bootstrap.min.css">
         <link rel="stylesheet" href="shared/bootstrap-theme.min.css">
+        <link rel="stylesheet" href="shared/bootstrap-multiselect.css">
         <link rel="stylesheet" href="admin.css">
         <script src="shared/jquery.min.js"></script>
         <script src="shared/list.min.js"></script>
         <script src="shared/bootstrap.min.js"></script>
+        <script src="shared/bootstrap-multiselect.min.js"></script>
         <script src="api.js"></script>
         <script>
             var transactionTable;
@@ -13,6 +15,40 @@
             var fields = ['client', 'status', 'date','transact_id'];
             function showTransaction(id) {
                 $('#tpane_tid').html(id);
+                $.get("/api/transaction/query", {'matches':{'transact_id':[id]}}, function(data){
+                    if (data[0]) {
+                        var list = $('#transaction_details table tbody');
+                        list.html('');
+                        for (entry in data[0]) {
+                            if (entry != 'transact_id') {
+                                var value = data[0][entry];
+                                if (entry === 'status') {
+                                    value = value == 0?'Open':(value==1?'Closed':'Abandoned');
+                                }
+                                list.append($('<tr>').append($('<td>').html(entry)).append($('<td>').html(value)));
+                            }
+                        }
+                        if (data[0].user != username) {
+                            $('#delete-t-button').prop('disabled', true);
+                        } else {
+                            $('#delete-t-button').prop('disabled', false);
+                        }
+                    }
+                });
+                $.get("/api/transaction_map", {'transaction': id}, function(data) {
+                    console.log('devices:');
+                    $('#device-list').html('');
+                    if (data.length != 0) {
+                        $('#device-list').append($('<ul>'));
+                    }
+                    for (ind in data) {
+                        var rid = data[ind].router_id;
+                        $.get("/api/router/query", {'fields':['name'], 'matches':{'router_id':[rid]}}, function (data) {
+                            $('#device-list ul').append($('<li>').html(data[0].name));
+                        });
+                    }
+                    console.log(data);
+                });
                 $('#transaction-pane').modal();
             }
             function loadTransactions(user) {
@@ -23,12 +59,13 @@
                 $.get('/api/transaction/query', {'fields':fields, 'matches':{'user':[user]}}, function(data) {
                     console.log(data);
                     for (ind in data) {
-                        data[ind].status = data[ind].status == 0?'Active':(data[ind].status==1?'Closed':'Abandoned');
+                        data[ind].status = data[ind].status == 0?'Open':(data[ind].status==1?'Closed':'Abandoned');
                         var r = transactionTable.add(data[ind]);
                         share = r[0];
                         r[0].elm.onclick = showTransaction.bind(this, data[ind].transact_id);
                     }
                     transactionTable.sort('date', {'order':'desc'});
+                    filter();
                 });
             }
             function updateUname(e) {
@@ -39,27 +76,165 @@
             function openTransaction() {
                 location.href = '/app/query.html?id='+$('#tpane_tid').html();
             }
+            function filter() {
+                if (transactionTable) {
+                    transactionTable.filter(function(item) {
+                        var stats = $('#status_filter').val();
+                        if (stats) {
+                            var found = false;
+                            for (ind in stats) {
+                                if (stats[ind] == item.values().status) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                                return false;
+                        }
+                        var client = $('#client_filter').val();
+                        if (client) {
+                            if (!item.values().client.includes(client)) {
+                                return false;
+                            }
+                        }
+                        var comment = $('#comment_filter').val();
+                        if (comment) {
+                            if (!item.values().comment.includes(comment)) {
+                                return false;
+                            }
+                        }
+                        var start = $('#start_date_filter').val();
+                        if (start) {
+                            if (start > item.values().date) {
+                                return false;
+                            }
+                        }
+                        var end = $('#end_date_filter').val();
+                        if (end) {
+                            if (end < item.values().date) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+                }
+            }
+            function deleteTransaction(tid) {
+                console.log('deleting: ' + tid);
+                if (tid) {
+                    $.post('/api/transaction', {'op': 'delete', 'id':tid}, function(data) {
+                        loadTransactions(username);
+                        $('#transaction-pane').modal('hide');
+                    });
+                }
+            }
         </script>
+        <style>
+            #transaction-list {
+                display: inline-block;
+                display: table;
+                margin: auto;
+            }
+            label {
+                margin-right: 10px;
+            }
+            #transaction_details > table thead {
+                display: table-header-group;
+            }
+            #transaction_details > table {
+                margin: auto;
+            }
+            #transaction_details > table th {
+                padding: 15px;
+                border: 1px solid #ddd;
+            }
+            #transaction_details > table td {
+                min-width: 100px;
+                padding: 5px;
+                padding-left: 15px;
+                padding-right: 15px;
+                border: 1px solid #ddd;
+            }
+            #router-list table {
+                margin: auto;
+            }
+        </style>
     </head>
     <body>
-        <label>Name: </label><input id="username" type="text" onchange="updateUname(this);">
-        <div id="transaction-list">
-            <input class="search" placeholder="Search">
-            <div class="table_holder table-bordered">
-                <table class="table" style="margin: auto;">
-                    <thead>
-                        <tr>
-                            <th class='sort' data-sort='client'>Client</th>
-                            <th class='sort' data-sort='status'>Status</th>
-                            <th class='sort' data-sort='date'>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody class="list">
-                        <tr class='clickable'><td class='client'></td><td class='status'></td><td class='date'></td></tr>
-                    </tbody>
-                </table>
+        <div class='container'>
+            <div class="row">
+                <div class="col-sm-6">
+                    <h1>Transaction Info</h1>
+                </div>
+                <div class="col-sm-6" style="text-align: right;">
+                    <br/>
+                    <label for='username'>User:</label>
+                    <input id="username" type="text" onchange="updateUname(this);">
+                </div>
             </div>
-        
+            <div class='row'>
+                <div class='col-md-4'>
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">Filters</h2>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-group">
+                                <label>Status:</label>
+                                <select id="status_filter" name="status" multiple="multiple" onchange="filter();">
+                                    <option value="Open" selected="selected">Open</option>
+                                    <option value="Closed">Closed</option>
+                                    <option value="Abandoned">Abandoned</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Client:</label>
+                                <input id="client_filter" type="text" onchange="filter();">
+                            </div>
+                            <div class="form-group">
+                                <label>Comment:</label>
+                                <input id="comment_filter" type="text" onchange="filter();">
+                            </div>
+                            <div class="form-group">
+                                <label>Start Date:</label>
+                                <input id="start_date_filter" type="date" onchange="filter();">
+                            </div>
+                            <div class="form-group">
+                                <label>End Date:</label>
+                                <input id="end_date_filter" type="date" onchange="filter();">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class='col-md-8'>
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">Results</h2>
+                        </div>
+                        <div class="panel-body">
+                            <div id="transaction-list">
+                                <input class="search" placeholder="Search">
+                                <div class="table_holder table-bordered">
+                                    <table class="table" style="margin: auto;">
+                                        <thead>
+                                            <tr>
+                                                <th class='sort' data-sort='client'>Client</th>
+                                                <th class='sort' data-sort='status'>Status</th>
+                                                <th class='sort' data-sort='date'>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="list">
+                                            <tr class='clickable'><td class='client'></td><td class='status'></td><td class='date'></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="transaction-pane" class="modal fade" role="dialog">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -68,11 +243,22 @@
                         <h4 class="modal-title">Transaction <span id='tpane_tid'></span></h4>
                     </div>
                     <div class="modal-body">
-                        
+                        <div id="transaction_details">
+                            <table>
+                                <thead>
+                                    <tr><th>Property</th><th>Value</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <hr/>
+                        <h4>Devices</h4>
+                        <div id='device-list'>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" onclick="openTransaction();">Open</button>
-                        <button type="button" class="btn btn-danger" onclick="deleteTransaction();">Delete</button><!-- only if user is current user-->
+                        <button id="delete-t-button" type="button" class="btn btn-danger" onclick="deleteTransaction($('#tpane_tid').html());">Delete</button>
                     </div>
                 </div>
             </div>
@@ -85,6 +271,9 @@
             if (queryString['t']) {
                 showTransaction(queryString['t']);
             }
+            $(document).ready(function() {
+                $('#status_filter').multiselect();
+            });
         </script>
     </body>
 </html>
