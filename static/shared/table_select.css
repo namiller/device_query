@@ -1,7 +1,0 @@
-tr.selected {
-    background-color: blue;
-}
-tr.inactive {
-    background-color: gray;
-    color: #eee;
-}
