@@ -12,6 +12,7 @@ var store = 'store.db';
 var exists = fs.existsSync(store);
 var db = new sqlite3.Database(store);
 
+var port = 8000;
 
 var configs_raw = fs.readFileSync('config.json');
 var config = JSON.parse(configs_raw);
@@ -328,10 +329,6 @@ app.get('/api/transaction', function(req, res) {
     res.send(transaction_cols);
 });
 
-app.get('/', function (req, res) {
-    res.send('Hello World');
-});
-
-app.listen(8000, function() {
-    console.log('Expample app listening on port 8000');
+app.listen(port, function() {
+    console.log('Expample app listening on port '+port);
 })
