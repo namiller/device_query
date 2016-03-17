@@ -7,8 +7,51 @@
         <script src="shared/list.min.js"></script>
         <script src="shared/bootstrap.min.js"></script>
         <script src="api.js"></script>
+        <script>
+        var types = [];
+        function refresh_t_select() {
+            var container = $('#type-select');
+            container.html('');
+            for (var i in types) {
+                var o = $('<option>').attr('value', types[i]);
+                o.html(types[i]);
+                container.append(o);
+            }
+        }
+        function load_types() {
+            $.get("/api/router/query", {'fields': ['type']}, function(data) {
+                types = [];
+                for (var i in data) {
+                    types.push(data[i].type);
+                }
+                refresh_t_select();
+            });
+        }
+        function type_change() {
+            var good_type = $('#type-select').val();
+            if (routerList && routerList.filter) {
+                routerList.filter(function(item) {
+                    return item.values().type == good_type;
+                });
+            }
+        }
+        </script>
+        <style>
+            #type-container {
+                margin: auto;
+                margin-top: 30px;
+                text-align: center;
+            }
+            #list-view {
+                margin-top: 0;
+            }
+        </style>
     </head>
     <body>
+        <div id="type-container">
+            <label>type:</label>
+            <select id="type-select" onChange='type_change();'></select>
+        </div>
         <div id="list-view">
             <input class="search" placeholder="Search" />
             <div class="table_holder table-bordered">
@@ -83,8 +126,6 @@
                     }
                     for (var i in key_data) {
                         var tag = key_data[i];
-                        console.log(tag);
-                        //cols[data[tag].index] = tag.key;
                         cols.push(tag.key);
                         var template = $("<td>", {'class': tag.key});
                         if (tag.key != 'router_id') {
@@ -124,19 +165,25 @@
                     if (routerList) {
                         routerList.clear();
                         routerList.add(data);
+                        type_change();
                     } else {
                         routerList = new List('list-view', {'valueNames':cols}, data);
+                        type_change();
                     }
                 });
             };
 
             add_router = function(properties) {
-                $.post("/api/router", {'op': 'add', 'properties':properties});
+                $.post("/api/router", {'op': 'add', 'properties':properties}, function() {
+                    load_types();
+                });
             };
 
             update_router = function(id, properties) {
                 for (var prop in properties) {
-                    $.post('/api/router', {'op':'update', 'property':prop, 'id': id, 'new': properties[prop]});
+                    $.post('/api/router', {'op':'update', 'property':prop, 'id': id, 'new': properties[prop]}, function() {
+                        load_types();
+                    });
                 }
             };
 
@@ -202,7 +249,8 @@
                 $("#routerEdit").modal();
             }
 
-            configure();
+           configure();
+           load_types(); 
         </script>
     </body>
 </html>

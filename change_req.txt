@@ -1,0 +1,33 @@
+Hi Nolan
+
+Finally got around to playing with the app. 
+It is very nice piece of work!  A few comments:
+
+
+1. Query page:
+   a. Some attributes (e.g. Name, sku) are Not selectable
+   b.  Can you fix the left pane in the query page so we don't have to slide down, to see "Reset" ?
+   c. Clicking on YES for the "Citrus" attribute makes the router go away. But, shouldn't clicking on "No" bring it back?
+   d. Price does not slide
+   e. When attempting to save a transaction, could you display previously set values, if any, in the "Save Transaction page" ?  For example, if  I already saved a transaction with client name ABC and then click save again (without hitting New Transaction), then the Save Transaction dialog box could pre-fill the client name ABC. This will serve to caution the user that they are about to overwrite a previous selection, perhaps, inadvertently.
+
+
+2. On Device Admin Page:
+
+    a. Can you make the type a selectable list?
+    b. Allows creation of duplicate entries
+
+3. Transactions:
+
+   a. After entering the filter, should there be a "Search" button?  {or have to mouse-click on some part of the Filter dialog box]
+   b. If not too much effort, could you add all selectable attributes to the Filter under transactions?
+   c. Also, add user as a filter so admin can find out the transactions of a specific user
+
+
+Lastly, please send  me the instructions for hosting it on my website, may be a cheat sheet on how to customize it for my needs.
+
+Sorry about the delay. Have been traveling more then usual lately.
+
+Regards,
+/Baktha
+

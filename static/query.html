@@ -37,7 +37,7 @@
                     }
                     for (var col in sorted) {
                         // Don't show the filters for columns that are unique to each router
-                        if (sorted[col].key == 'router_id' || sorted[col].key == 'name') {
+                        if (sorted[col].key == 'router_id' || sorted[col].key == 'name' || sorted[col].key == 'sku') {
                             continue;
                         }
                         console.log(sorted[col].key);
@@ -457,8 +457,9 @@
             }
             
             function remove_selection(obj) {
+                console.log(obj);
                 for (var i = 0; i < selections.length; i++) {
-                    if (selections[i].router_id === device_display_id) {
+                    if (selections[i].router_id == device_display_id) {
                         selections.splice(i,1);
                     }
                 }
@@ -589,6 +590,8 @@
                         <div class="panel-body" style="max-height: 500px; overflow:scroll;">
                             <div id="filters" onmouseup='handleChange();'>
                             </div>
+                        </div>
+                        <div class="panel-footer">
                             <button class='btn btn-danger' onclick='resetFilters();' style="width:100%;">Reset Filters</button>
                         </div>
                     </div>
