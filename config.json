@@ -2,24 +2,31 @@
 	"name": "Fruit",
 	"properties": [{
         "name": "type",
-        "type": "TEXT"
+        "type": "TEXT",
+        "unique": false
     }, {
         "name": "name",
-        "type": "TEXT" 
+        "type": "TEXT", 
+        "unique": true
     }, {
         "name": "vendor",
-        "type": "TEXT"
+        "type": "TEXT",
+        "unique": false
     }, {
         "name": "sku",
-        "type": "TEXT"
+        "type": "TEXT",
+        "unique": true
     }, {
 		"name": "citrus",
-		"type": "BOOLEAN"
+		"type": "BOOLEAN",
+        "unique": false
 	}, {
 		"name": "shape",
-		"type": "TEXT"
+		"type": "TEXT",
+        "unique": false
 	}, {
 		"name": "price",
-		"type": "REAL"
+		"type": "REAL",
+        "unique": false
 	}]
 }

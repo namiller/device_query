@@ -17,6 +17,7 @@ var port = 8000;
 var configs_raw = fs.readFileSync('config.json');
 var config = JSON.parse(configs_raw);
 console.log(config);
+var unique_map = {'router_id': true};
 
 var router_cols, user_cols, transaction_cols, transaction_map_cols;
 db.serialize(function() {
@@ -34,6 +35,7 @@ db.serialize(function() {
         for (ind in config.properties) {
             var nm = config.properties[ind].name;
             var tp = config.properties[ind].type;
+            unique_map[nm] = config.properties[ind].unique;
             var found = false;
             for (i in out) {
                 if (out[i].name.toUpperCase() === nm.toUpperCase()) {
@@ -293,6 +295,7 @@ app.get('/api/router', function(req, res) {
         var line = router_cols[ind];
         ret[line.name] = {'type': line.type};
         ret[line.name].index = i++;
+        ret[line.name].unique = unique_map[line.name];
     }
     min_series = {};
     max_series = {};

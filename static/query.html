@@ -20,7 +20,28 @@
             var last_query;
             var result_fields = ['router_id', 'name', 'vendor', 'sku'];
             var device_display_id = -1;
-            
+
+            function update_result_list() {
+                selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
+                selectionList.clear();
+                var table_header = $('#result-list > .table_holder > table > thead > tr');
+                var table_body = $('#result-list > .table_holder > table > tbody > tr');
+                for (var tagi in result_fields) {
+                    var tag = result_fields[tagi];
+                    var template = $("<td>", {'class': tag});
+                    if (tag != 'router_id') {
+                        var name = tag.replace(/\b\w/g, function (w) {return w.toUpperCase();});
+                        var header = $("<th>", {'class': 'sort', 'data-sort': tag}).html(name);
+                        table_header.append(header);
+                    } else {
+                        template.addClass('hidden');
+                    }
+                    table_body.append(template);
+                }
+                resultList = new List('result-list', {'valueNames':result_fields}, []);
+                resultList.clear();
+            }
+
             function load_filters() {
                 var fix_order = function(order) {
                     var sentinal = $('#filters').children().last()
@@ -35,12 +56,17 @@
                     for (var col in data) {
                         sorted[data[col].index] = {'key': col, 'value': data[col]};
                     }
+                    result_fields = [];
                     for (var col in sorted) {
                         // Don't show the filters for columns that are unique to each router
-                        if (sorted[col].key == 'router_id' || sorted[col].key == 'name' || sorted[col].key == 'sku') {
+                        if (sorted[col].value.unique) {
+                            result_fields.push(sorted[col].key);
+                            //TODO populate tables here.
                             continue;
                         }
-                        console.log(sorted[col].key);
+                        /*sorted[col].key == 'router_id' || sorted[col].key == 'name' || sorted[col].key == 'sku') {
+                            continue;
+                        }*/
                         switch(sql_type(sorted[col].value.type)) {
                             case 0:
                                 create_num_filter(sorted[col].key, sorted[col].value, true);
@@ -57,41 +83,45 @@
                         }
                     }
                     fix_order(sorted);
+                    //update_result_list();
                 });
             }
             
             function create_num_filter(column, properties, integer) {
-                var filt = $("#range-select").clone();
-                filt.find('h4').html(column);
-                var id_tag = 'filter_' + column;
-                filt.attr('id', id_tag);
-                var slide = filt.find('#template-slide');
-                slide.attr('id', id_tag + '_slider');
-                slide.attr('data-slider-min', properties.min);
-                slide.attr('data-slider-max', properties.max);
-                if (integer) {
-                    slide.attr('data-slider-step', Math.ceil((properties.max-properties.min)/100.0));
-                } else {
-                    slide.attr('data-slider-step', (properties.max-properties.min)/100);
-                }
-                slide.attr('data-slider-value', '[' + properties.min + ',' + properties.max + ']');
-                filt.removeClass('template');
-                slide.slider({});
-                $('#filters').append(filt);
-                document.getElementById(id_tag).getFilter = function() {
-                    filt.find('input').attr('data-value'); //min,max
-                    var min = JSON.parse(filt.find('input').attr('data-slider-min'))
-                    var max = JSON.parse(filt.find('input').attr('data-slider-max'))
-                    var sel = JSON.parse('['+filt.find('input').attr('data-value')+']');
-                    var sel_min = sel[0];
-                    var sel_max = sel[1];
-                    if (sel_min != min || sel_max != max) {
-                        var ret = {'ranges': {}};
-                        ret['ranges'][column] = {'min': sel_min, 'max': sel_max};
-                        return ret;
+                if (properties.min != null && properties.max != null) {
+                    var filt = $("#range-select").clone();
+                    filt.find('h4').html(column);
+                    var id_tag = 'filter_' + column;
+                    filt.attr('id', id_tag);
+                    var slide = filt.find('#template-slide');
+                    slide.attr('id', id_tag + '_slider');
+                    slide.attr('data-slider-min', properties.min);
+                    slide.attr('data-slider-max', properties.max);
+                    if (integer) {
+                        slide.attr('data-slider-step', Math.ceil((properties.max-properties.min)/100.0));
+                        } else {
+                        slide.attr('data-slider-step', (properties.max-properties.min)/100);
                     }
-                    return {};
+                    slide.attr('data-slider-value', '[' + properties.min + ',' + properties.max + ']');
+                    filt.removeClass('template');
+                    slide.slider({});
+                    $('#filters').append(filt);
+                    document.getElementById(id_tag).getFilter = function() {
+                        filt.find('input').attr('data-value'); //min,max
+                        var min = JSON.parse(filt.find('input').attr('data-slider-min'))
+                        var max = JSON.parse(filt.find('input').attr('data-slider-max'))
+                        var sel = JSON.parse('['+filt.find('input').attr('data-value')+']');
+                        var sel_min = sel[0];
+                        var sel_max = sel[1];
+                        if (sel_min != min || sel_max != max) {
+                            var ret = {'ranges': {}};
+                            ret['ranges'][column] = {'min': sel_min, 'max': sel_max};
+                            return ret;
+                        }
+                        return {};
+                    }
                 }
+                return {};
             }
 
             function create_text_filter(column, callback) {
@@ -224,7 +254,6 @@
             }
 
             function update_selection() {
-                console.log(selections);
                 selectionList.clear();
                 if (selections.length != 0) {
                     selectionList.add(selections);
@@ -233,12 +262,10 @@
 
             function load_transaction(tid) {
                 $.get('/api/transaction/query', {'matches':{'transact_id':[tid]}},function(data) {
-                    console.log(data);
                     if (data.length != 0) {
                         transaction_id = tid;
                         document.cookie = 'id='+tid;
                         $.get('/api/transaction_map', {'transaction':tid}, function(data){
-                            console.log(data);
                             for (ind in data) {
                                 var q = {'fields': ['name', 'router_id'],'matches':{'router_id':[data[ind].router_id]}};
                                 $.get('/api/router/query', q, function(data){
@@ -266,24 +293,7 @@
                         load_transaction(tid);
                     }
                 }
-                selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
-                selectionList.clear();
-                var table_header = $('#result-list > .table_holder > table > thead > tr');
-                var table_body = $('#result-list > .table_holder > table > tbody > tr');
-                for (var tagi in result_fields) {
-                    var tag = result_fields[tagi];
-                    var template = $("<td>", {'class': tag});
-                    if (tag != 'router_id') {
-                        var name = tag.replace(/\b\w/g, function (w) {return w.toUpperCase();});
-                        var header = $("<th>", {'class': 'sort', 'data-sort': tag}).html(name);
-                        table_header.append(header);
-                    } else {
-                        template.addClass('hidden');
-                    }
-                    table_body.append(template);
-                }
-                resultList = new List('result-list', {'valueNames':result_fields}, []);
-                resultList.clear();
+                update_result_list();
             };
             
             function rowClick(e) {
@@ -311,7 +321,6 @@
             function selectionClick(e) {
                 device_display_id = $(e).find('.router_id').html();
                 $.get("/api/router/query", {'matches':{'router_id':[device_display_id]}}, function(data) {
-                    console.log(data);
                     if (data[0]) {
                         var list = $('#device_details table tbody');
                         list.html('');
@@ -335,7 +344,6 @@
                                 var tid = data[entry].transact_id;
                                 var quer = {'fields':listed_fields, 'matches':{'transact_id':[tid]}};
                                 $.get("/api/transaction/query", quer, function(data) {
-                                    console.log(data);
                                     shared = data;
                                     data[0].status = data[0].status == 0?'Open':(data[0].status==1?'Closed':'Abandoned');
                                     var r = transactionList.add(data);
@@ -343,7 +351,6 @@
                                     r[0].elm.onclick = function() {
                                         window.open(url, '_blank');
                                     }
-                                    console.log(r);
                                 });
                             }
                         }
@@ -383,7 +390,6 @@
                             'comment': $('#transaction_comments').val()
                         };
                     $.post("/api/transaction", {'op':'add', 'properties':props }, function(data){
-                        console.log(data);
                         // check that data isn't an error
                         if (!data.lastID) {
                             console.log('error with request');
@@ -391,8 +397,6 @@
                         }
                         transaction_id = data.lastID;
                         var req = {'op':'add', 'transaction':transaction_id, 'routers': router_adds};
-                        console.log('mapping request:');
-                        console.log(req);
                         $.post("/api/transaction_map", req, function(data) {
                             console.log(data);
                         });
@@ -402,7 +406,6 @@
                 } else {
                     // clear the existing routers in the transaction list.
                     $.post("/api/transaction_map", {'op':'clear','transaction':transaction_id}, function(data) {
-                        console.log(data);
                         // add all the current selections
                         var req = {'op':'add', 'transaction':transaction_id, 'routers': router_adds};
                         $.post("/api/transaction_map", req, function(data) {
@@ -450,14 +453,12 @@
                             $('#transaction_status').children().removeClass('active');
                             $('#transaction_status').children().eq(data[0].status).addClass('active');
                         }
-                        console.log(data);
                     });
                 }
                 $('#transaction-pane').modal();
             }
             
             function remove_selection(obj) {
-                console.log(obj);
                 for (var i = 0; i < selections.length; i++) {
                     if (selections[i].router_id == device_display_id) {
                         selections.splice(i,1);
@@ -799,8 +800,8 @@
         </div>
         <script>
             configure();
-            updateUsername();
             load_filters();
+            updateUsername();
         </script>
     </body>
 </html>
