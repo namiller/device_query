@@ -35,6 +35,10 @@
                 });
             }
         }
+        function newDevice() {
+            $('#add_type').val($('#type-select').val());
+            $('#routerAdd').modal();
+        }
         </script>
         <style>
             #type-container {
@@ -64,7 +68,7 @@
                     </tbody>
                 </table>
             </div>
-            <button class="btn btn-success" onclick="$('#routerAdd').modal();" style="display: block; width:100%;">New Device</button>
+            <button class="btn btn-success" onclick="newDevice();" style="display: block; width:100%;">New Device</button>
         </div>
         <!-- The Modal view that is displayed when a row is clicked for editing -->
         <div id="routerEdit" class="modal fade" role="dialog">
