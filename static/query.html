@@ -22,10 +22,16 @@
             var device_display_id = -1;
 
             function update_result_list() {
-                selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
-                selectionList.clear();
+                if (!selectionList) {
+                  selectionList = new List('selection-list', {'valueNames':['name', 'router_id']});
+                  selectionList.clear();
+                }
+                var table_body_par = $('#result-list > .table_holder > table > tbody');
+                table_body_par.html('<tr class="clickable" onclick="rowClick(this);" id="template-row"></tr>');
                 var table_header = $('#result-list > .table_holder > table > thead > tr');
                 var table_body = $('#result-list > .table_holder > table > tbody > tr');
+                table_header.html('');
+                table_body.html('');
                 for (var tagi in result_fields) {
                     var tag = result_fields[tagi];
                     var template = $("<td>", {'class': tag});
@@ -83,7 +89,7 @@
                         }
                     }
                     fix_order(sorted);
-                    //update_result_list();
+                    update_result_list();
                 });
             }
             
