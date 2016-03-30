@@ -57,7 +57,6 @@
                     }
                 };
                 $.get("/api/router", null, function(data) {
-                    console.log(data);
                     var sorted = [];
                     for (var col in data) {
                         sorted[data[col].index] = {'key': col, 'value': data[col]};
