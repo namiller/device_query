@@ -50,7 +50,6 @@ db.serialize(function() {
                 db.run("ALTER TABLE routers ADD " + nm + " " + tp);
             }
         }
-        console.log(out);
     });
     db.all("PRAGMA table_info(routers)", function (err, out) {
         router_cols = out;
@@ -93,6 +92,7 @@ var post_responder = function(db_handle, req, res) {
                 vals = vals.slice(0,-1);
                 args.unshift("INSERT INTO " + db_handle + " (" + cols + ") VALUES (" + vals + ")");
                 args.push(callback);
+
                 db.serialize(function() {
                     db.run.apply(this, args);
                 });
@@ -117,7 +117,104 @@ var post_responder = function(db_handle, req, res) {
     }
 };
 
-app.post('/api/router', post_responder.bind(this, 'routers'));
+var special_post_responder = function(db_handle, req, res) {
+  var compose = function (arry, tween) {
+    var ret = "";
+    for (ind in arry) {
+      ret = ret + arry[ind] + tween;
+    }
+    ret = ret.slice(0, -1 * tween.length);
+    return ret;
+  }
+
+    console.log('special post request');
+    console.log(req.body);
+    var callback = function(err) {
+        if (err == null) {
+            res.send(this);
+        } else {
+            res.send('error: ' + err);
+        }
+    }
+    try {
+        switch (req.body['op']) {
+            case 'add':
+                var cols = '';
+                var vals = '';
+                var args = [];
+                for (ind in req.body['properties']) {
+                    cols = cols + ind + ',';
+                    vals = vals + '?,';
+                    args.push(req.body['properties'][ind]);
+                }
+                cols = cols.slice(0,-1);
+                vals = vals.slice(0,-1);
+                args.unshift("INSERT INTO " + db_handle + " (" + cols + ") VALUES (" + vals + ")");
+                args.push(callback);
+
+                var unique_args = [];
+                var clauses = [];
+                for (k in unique_map) {
+                  if (k != 'router_id' && unique_map[k] && req.body.properties[k]) {
+                    var v = req.body.properties[k];
+                    clauses.push(k + ' = ? ');
+                    unique_args.push(v);
+                 }
+                }
+                var quer = 'SELECT DISTINCT (router_id) FROM ' + db_handle + ' WHERE ';
+                var u_check = true;
+                if (clauses.length > 1) {
+                  quer =  quer +"(" + compose(clauses, " ) OR ( ") + ")";
+                } else if (clauses.length == 1) {
+                  quer = quer + clauses[0];
+                } else {
+                  u_check = false;
+                }
+                
+                unique_args.unshift(quer);
+                var callback = function(e,d) {
+                  if (d.length == 0) {
+                    db.run.apply(this, args);
+                  } else {
+                    // Trying to add a redundant entry.. for shame
+                  }
+                }
+                db.serialize(function() {
+                    //db.all('SELECT DISTINCT (router_id) FROM ' + db_handle + ' WHERE ' + );//...
+                    // TODO come back here.
+                    if (u_check) {
+                      unique_args.push(callback.bind(this));
+                      db.all.apply(this, unique_args);
+                    } else {
+                      db.run.apply(this, args);
+                    }
+                });
+                break;
+            case 'update':
+                db.serialize(function() {
+                    db.all('SELECT DISTINCT (router_id) FROM ' + db_handle + ' WHERE ' + req.body.property +'=?', req.body.new, function(e,d) {
+                      if (d.length == 0 || (d.length == 1 && d[0].router_id == req.body.id)) {
+                        db.run('UPDATE ' + db_handle + ' SET '+req.body.property+' = ? WHERE rowid = ?', req.body.new, req.body.id, callback);
+                      }
+                    });
+                });
+                break;
+            case 'delete':
+                db.serialize(function() {
+                    db.run('DELETE FROM ' + db_handle + ' WHERE rowid=?', req.body.id, callback);
+                });
+                break;
+            default:
+                res.send('unknown operation requested');
+                return;
+        }
+    } catch (all) {
+        res.send('illformed request ' + all);
+        return;
+    }
+};
+
+app.post('/api/router', special_post_responder.bind(this, 'routers'));
 
 app.post('/api/user', post_responder.bind(this, 'users'));
 
@@ -176,7 +273,6 @@ var get_responder = function(db_handle, req, res) {
             clauses.push(req.query.searches[prop].field + " LIKE ? ");
         }
     }
-    console.log(clauses);
     var quer = " WHERE ";
     if (clauses.length > 1) {
         quer =  quer +"(" + compose(clauses, " ) AND ( ") + ")";
@@ -185,12 +281,9 @@ var get_responder = function(db_handle, req, res) {
     } else {
         quer = "";
     }
-    console.log(quer);
 
     db.serialize(function() {
-        console.log('SELECT DISTINCT ' + fields + ' FROM ' + db_handle + quer);
         args.unshift('SELECT DISTINCT ' + fields + ' FROM ' + db_handle + quer);
-        console.log(args);
         args.push(function(err,data) {
             if (err == null) {
                 res.send(data);
@@ -211,7 +304,6 @@ app.get('/api/transaction_map', function (req, res) {
     var router = req.query.router;
     if (router !== undefined && router !== '') {
         db.all('SELECT DISTINCT (transact_id) FROM transaction_map WHERE router_id=?', router, function(e,d) {
-            console.log('SELECT DISTINCT (transact_id) FROM transaction_map WHERE router_id=?' + router);
             if (e == null) {
                 res.send(d);
             } else {
@@ -222,7 +314,6 @@ app.get('/api/transaction_map', function (req, res) {
     }
     if (transaction !== undefined && transaction !== '') {
         db.all('SELECT DISTINCT (router_id) FROM transaction_map WHERE transact_id=?', transaction, function(e,d) {
-            console.log('SELECT DISTINCT (router_id) FROM transaction_map WHERE transact_id=?' + transaction);
             if (e == null) {
                 res.send(d);
             } else {
@@ -241,7 +332,6 @@ app.get('/api/transaction_map', function (req, res) {
 app.post('/api/transaction_map', function (req, res) {
     var transaction  = req.body['transaction'];
     var routers = req.body['routers'];
-    console.log(req.body);
     switch (req.body['op']) {
         case 'add':
             if (transaction === undefined || transaction === '' || routers === undefined || routers.length <= 0) {
