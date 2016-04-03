@@ -40,23 +40,23 @@ node index.js
 API structure:
 
 /api
-+-- /router
-|   +-- /query
-+-- /user
-|   +-- /query
-+-- /transaction
-|   +-- /query
-+-- /transaction-map
+* /router - meta data for the devices/post changes
+  * /query - query the device database
+* /user - meta data for users/post changes
+  * /query - query the user database
+* /transaction - meta data for the transactions/post changes
+  * /query - query the transaction database
+* /transaction-map - query/edit the junction table for devices and transactions
 
 APP structure:
 
 /app
-+-- /admin.html
-+-- /index.html
-+-- /device-admin.html
-+-- /user-admin.html
-+-- /transactions.html
-+-- /query.html
+* /admin.html - admin view frame (includes tabs for all pages)
+* /index.html - user view frame (only includes query and transactions tabs)
+* /device-admin.html - add/edit devices
+* /user-admin.html - add/edit users
+* /transactions.html - view transactions
+* /query.html - add/edit transactions and view devices
 
 # Notes:
 to change the deployment port, change the port value on line 15 of index.js
