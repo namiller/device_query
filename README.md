@@ -35,6 +35,28 @@ control-c
 node index.js
 ```
 
+# URL structure: 
+
+API structure:
+
+/api
+* /router
+..* /query
+* /user
+..* /query
+* /transaction
+..* /query
+* /transaction-map
+
+APP structure:
+/app
+* /admin.html
+* /index.html
+* /device-admin.html
+* /user-admin.html
+* /transactions.html
+* /query.html
+
 # Notes:
 to change the deployment port, change the port value on line 15 of index.js
 
@@ -44,4 +66,5 @@ Allowable types are the same as the sqlite allowable affinities:
 (section 2.2) https://www.sqlite.org/datatype3.html
 
 The order of the elements in the ui is the order in config.json, however fields added after initialization will be appended to the list rather than in the order of the config.
+
 
