@@ -3,8 +3,10 @@ system for querying devices through a web interface
 
 # deployment:
 npm install
+
 node index.js
-- > app can then be accessed at http://localhost:8000/app
+
+app can then be accessed at http://localhost:8000/app
 
 # notes:
 to change the deployment port, change the port value on line 15 of index.js
