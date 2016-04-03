@@ -40,22 +40,23 @@ node index.js
 API structure:
 
 /api
-* /router
-..* /query
-* /user
-..* /query
-* /transaction
-..* /query
-* /transaction-map
++-- /router
+|   +-- /query
++-- /user
+|   +-- /query
++-- /transaction
+|   +-- /query
++-- /transaction-map
 
 APP structure:
+
 /app
-* /admin.html
-* /index.html
-* /device-admin.html
-* /user-admin.html
-* /transactions.html
-* /query.html
++-- /admin.html
++-- /index.html
++-- /device-admin.html
++-- /user-admin.html
++-- /transactions.html
++-- /query.html
 
 # Notes:
 to change the deployment port, change the port value on line 15 of index.js
