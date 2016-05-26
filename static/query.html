@@ -139,7 +139,10 @@
                     selection = filt.find('select');
                     for (ind in data) {
                         var str = data[ind][column];
-                        selection.append('<option value="'+str+'">'+str+'</option>');
+                        var strs = str.split(',');
+                        for (i in strs) {
+                          selection.append('<option value="'+strs[i].trim()+'">'+strs[i].trim()+'</option>');
+                        }
                     }
                     selection.multiselect();
                     $('#filters').append(filt);
@@ -149,12 +152,16 @@
                         for (var i = 0; i < objs.length; i++) {
                             selection.push(objs.eq(i).val());
                         }
-                        if (selection.length!=0) {
-                            var ret = {'matches': {}};
-                            ret['matches'][column] = selection;
-                            return ret;
+                        var ret = {'searches': {}};
+                        ret['searches'][column] = [];
+                        for (ind in selection) {
+                          if (selection[ind].length != 0) {
+                            ret['searches'][column].push({"string": selection[ind], "starts": false});
+                          }
                         }
-                        return {};
+                        if (ret['searches'][column].length == 0)
+                          return {};
+                        return ret;
                     }
                     if (callback)
                         callback();
@@ -195,7 +202,7 @@
             }
 
             function getMatches() {
-                query = {'fields':result_fields, 'matches':{}, 'ranges': {}};
+                query = {'fields':result_fields, 'searches': {}, 'matches':{}, 'ranges': {}};
                 filters = $("#filters").find('.filter');
                 for (var i = 0; i < filters.length; i++) {
                     var q = filters[i].getFilter();
@@ -204,15 +211,32 @@
                             query.matches[obj] = q.matches[obj];
                         }
                     }
+                    if (q && q.searches) {
+                      for (obj in q.searches) {
+                        query.searches[obj] = q.searches[obj];
+                      }
+                    }
                     if (q && q.ranges) {
                         for (obj in q.ranges) {
                             query.ranges[obj] = q.ranges[obj];
                         }
                     }
                 }
-                if (JSON.stringify(query) === last_query || !query.matches.type || query.matches.type.length == 0) {
-                    return;
+                console.log("making request:");
+                console.log(query);
+                /*
+                var type_value = false;
+                for (i in query.searches) {
+                  if (query.searches[i].field === 'type') {
+                    type_value = true;
+                    break;
+                  }
                 }
+                if (JSON.stringify(query) === last_query || !type_value) {
+                  console.log("aborted");
+                  return;
+                }
+                */
                 last_query = JSON.stringify(query);
                 $.get("/api/router/query", query, function(data) {
                     if (resultList) {

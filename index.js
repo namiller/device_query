@@ -244,6 +244,7 @@ var get_responder = function(db_handle, req, res) {
     // handle the matches portion of the API
     var clauses = [];
     var args = [];
+    console.log(req.query);
     if (req.query.matches && !empty(req.query.matches)) {
         for (prop in req.query.matches) {
             var conjunct = [];
@@ -261,21 +262,25 @@ var get_responder = function(db_handle, req, res) {
            args.push(req.query.ranges[prop].max);
        }
     }
-    if (req.query.searches && req.query.searches.length > 0) {
-        for (prop in req.query.searches) {
-            var str = "";
-            console.log(req.query.searches[prop].start);
-            if (req.query.searches[prop].start === 'false' || req.query.searches[prop].start === false) {
-                str = "%";
-            }
-            str = str + req.query.searches[prop].string + "%";
-            args.push(str);
-            clauses.push(req.query.searches[prop].field + " LIKE ? ");
+    if (req.query.searches && !empty(req.query.searches)) {
+      console.log(req.query.searches);
+      for (prop in req.query.searches) {
+        var conjunct = [];
+        for (ind in req.query.searches[prop]) {
+          conjunct.push(prop + " LIKE ? ");
+          var str = "";
+          if (req.query.searches[prop][ind].starts === 'false' || req.query.searches[prop][ind].starts === false) {
+            str = "%";
+          }
+          str = str + req.query.searches[prop][ind].string + "%";
+          args.push(str);
         }
+        clauses.push("( " + compose(conjunct, " OR ") + " )");
+      }
     }
     var quer = " WHERE ";
     if (clauses.length > 1) {
-        quer =  quer +"(" + compose(clauses, " ) AND ( ") + ")";
+        quer =  quer + "(" + compose(clauses, " ) AND ( ") + ")";
     } else if (clauses.length == 1) {
         quer = quer + clauses[0];
     } else {
@@ -291,6 +296,8 @@ var get_responder = function(db_handle, req, res) {
                 res.send('query error: ' + err);
             }
         });
+        console.log("args:");
+        console.log(args);
         db.all.apply(this, args);
     });
 };
